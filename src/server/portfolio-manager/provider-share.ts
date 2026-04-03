@@ -47,9 +47,9 @@ const PROVIDER_SYNC_QUEUED_STALE_THRESHOLD_MS = 15 * 60_000;
 const PROVIDER_SYNC_SCHEMA_NOT_READY_MESSAGE =
   "Portfolio Manager sync is not ready in this environment yet. Apply the latest database migration and reload.";
 const PROVIDER_SYNC_AUTO_CHECK_UNAVAILABLE_MESSAGE =
-  "Background Portfolio Manager sync is unavailable right now. Quoin cannot auto-check for the connection request until the worker is back online.";
+  "Automatic Portfolio Manager checks could not be started right now. Use Check now to retry.";
 const PROVIDER_SYNC_DIRECT_CHECK_MESSAGE =
-  "Background sync is unavailable, so Quoin checked Portfolio Manager directly.";
+  "Quoin checked Portfolio Manager directly.";
 const PROVIDER_SYNC_STALE_RECOVERY_MESSAGE =
   "Quoin recovered from a stuck provider sync and checked Portfolio Manager directly.";
 
@@ -61,7 +61,10 @@ function sanitizeProviderSummaryError(message: string | null | undefined) {
   const normalized = message.trim().toLowerCase();
   if (
     normalized === PROVIDER_SYNC_SCHEMA_NOT_READY_MESSAGE.toLowerCase() ||
-    normalized.includes("apply the latest database migration")
+    normalized.includes("apply the latest database migration") ||
+    normalized === PROVIDER_SYNC_AUTO_CHECK_UNAVAILABLE_MESSAGE.toLowerCase() ||
+    normalized.includes("worker is back online") ||
+    normalized.includes("automatic portfolio manager checks could not be started")
   ) {
     return null;
   }
@@ -1458,8 +1461,7 @@ export async function getPortfolioManagerProviderConnectionStateForOrganization(
     management?.status === "RUNNING" ||
     importState?.status === "RUNNING" ||
     importState?.status === "QUEUED";
-  const syncStateTrustworthy =
-    runtimeHealth.workerStatus === "HEALTHY" && !runtimeHealth.latestJob.stalled;
+  const syncStateTrustworthy = !runtimeHealth.latestJob.stalled;
 
   const baseSummaryState: ProviderConnectionSummaryState =
     management?.managementMode === "QUOIN_MANAGED"
@@ -1478,11 +1480,7 @@ export async function getPortfolioManagerProviderConnectionStateForOrganization(
 
   const backgroundSyncUnavailable =
     isProviderSyncQueueFailureCode(management?.latestErrorCode) ||
-    isProviderSyncQueueFailureCode(importState?.latestErrorCode) ||
-    ((baseSummaryState === "WAITING_FOR_REQUEST" ||
-      baseSummaryState === "WAITING_FOR_SHARES" ||
-      baseSummaryState === "SYNCING") &&
-      runtimeHealth.workerStatus !== "HEALTHY");
+    isProviderSyncQueueFailureCode(importState?.latestErrorCode);
 
   const fatalProviderError =
     providerModeActive &&
@@ -1496,12 +1494,11 @@ export async function getPortfolioManagerProviderConnectionStateForOrganization(
     ? "FAILED"
     : baseSummaryState;
 
-  const backgroundSyncAvailable =
-    runtimeHealth.workerStatus === "HEALTHY" && runtimeHealth.queuesHealthy;
+  const backgroundSyncAvailable = !schemaWarning && !runtimeHealth.latestJob.stalled;
   const backgroundSyncMessage = backgroundSyncUnavailable
-    ? PROVIDER_SYNC_AUTO_CHECK_UNAVAILABLE_MESSAGE
+    ? null
     : runtimeHealth.latestJob.stalled
-      ? "The last provider sync got stuck. Use Check now to refresh shared properties directly."
+      ? "The last provider sync stalled. Use Check now to retry."
       : runtimeHealth.warning;
 
   const linkedBuildingCount = remoteProperties.filter((property) => property.linkedBuildingId != null).length;
@@ -2009,7 +2006,7 @@ export async function configurePortfolioManagerProviderConnectionForOrganization
     },
   });
 
-  const queueResult = await tryEnqueuePortfolioManagerProviderSync({
+  const inlineResult = await runPortfolioManagerProviderSyncInline({
     organizationId: input.organizationId,
     actorType: input.actorType,
     actorId: input.actorId,
@@ -2021,11 +2018,12 @@ export async function configurePortfolioManagerProviderConnectionForOrganization
     saved: true,
     targetUsername,
     resetConnection: shouldResetConnection,
-    autoCheckQueued: queueResult.queued,
-    queueName: queueResult.queueName,
-    queueJobId: queueResult.queueJobId,
-    operationalJobId: queueResult.operationalJobId,
-    warning: queueResult.warning,
+    autoCheckQueued: false,
+    queueName: null,
+    queueJobId: null,
+    operationalJobId: inlineResult.operationalJobId,
+    warning: null,
+    message: "Username saved. Quoin checked Portfolio Manager directly.",
   };
 }
 
@@ -2060,26 +2058,6 @@ export async function refreshPortfolioManagerProviderConnectionForOrganization(i
     active: true,
     db,
   });
-  const shouldRunInline =
-    recovery.recovered || runtimeHealth.workerStatus !== "HEALTHY" || runtimeHealth.latestJob.stalled;
-
-  if (!shouldRunInline) {
-    const queueResult = await tryEnqueuePortfolioManagerProviderSync({
-      organizationId: input.organizationId,
-      actorType: input.actorType,
-      actorId: input.actorId,
-      requestId: input.requestId,
-      db,
-    });
-
-    if (queueResult.queued) {
-      return {
-        mode: "queued" as const,
-        message: "Checking shared properties in the background.",
-        ...queueResult,
-      };
-    }
-  }
 
   const inlineResult = await runPortfolioManagerProviderSyncInline({
     organizationId: input.organizationId,
@@ -2099,17 +2077,13 @@ export async function refreshPortfolioManagerProviderConnectionForOrganization(i
     failedPropertyCount: inlineResult.failedPropertyCount,
     warning: recovery.recovered
       ? PROVIDER_SYNC_STALE_RECOVERY_MESSAGE
-      : runtimeHealth.workerStatus !== "HEALTHY"
-        ? PROVIDER_SYNC_DIRECT_CHECK_MESSAGE
-        : runtimeHealth.latestJob.stalled
+      : runtimeHealth.latestJob.stalled
           ? PROVIDER_SYNC_STALE_RECOVERY_MESSAGE
           : null,
     message:
       recovery.recovered
         ? PROVIDER_SYNC_STALE_RECOVERY_MESSAGE
-        : runtimeHealth.workerStatus !== "HEALTHY"
-          ? PROVIDER_SYNC_DIRECT_CHECK_MESSAGE
-          : "Checked Portfolio Manager directly.",
+        : PROVIDER_SYNC_DIRECT_CHECK_MESSAGE,
   };
 }
 

@@ -90,8 +90,12 @@ export function PortfolioManagerExistingAccountPanel({
   });
   const configureProviderConnection =
     trpc.portfolioManager.configureProviderConnection.useMutation({
-      onSuccess: async () => {
-        setActionMessage("Username saved. Quoin will keep checking for shared properties.");
+      onSuccess: async (result) => {
+        setActionMessage(
+          typeof result.message === "string" && result.message.trim().length > 0
+            ? result.message
+            : "Username saved. Quoin checked Portfolio Manager directly.",
+        );
         await utils.portfolioManager.getProviderConnectionStatus.invalidate();
       },
     });

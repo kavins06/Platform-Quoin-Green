@@ -1,73 +1,52 @@
 import packageJson from "../../../package.json";
 import type { PrismaClient } from "@/generated/prisma";
 import { prisma } from "@/server/lib/db";
-import { createQueue, QUEUES } from "@/server/lib/queue";
-import { getRedis, runRedisHealthCommand } from "@/server/lib/redis";
+import { JOB_STATUS } from "@/server/lib/jobs";
 
-const WORKER_HEARTBEAT_KEY = "runtime:worker-heartbeat";
-const WORKER_HEARTBEAT_TTL_SECONDS = 120;
-const WORKER_STALE_THRESHOLD_MS = 90_000;
 const JOB_STALE_THRESHOLD_MS = 10 * 60_000;
 const QUEUED_JOB_STALE_THRESHOLD_MS = 15 * 60_000;
 
-const ACTIVE_QUEUE_NAMES = [
-  QUEUES.DATA_INGESTION,
-  QUEUES.UTILITY_BILL_EXTRACTION,
-  QUEUES.PORTFOLIO_MANAGER_PROVISIONING,
-  QUEUES.PORTFOLIO_MANAGER_IMPORT,
-  QUEUES.PORTFOLIO_MANAGER_SETUP,
-  QUEUES.PORTFOLIO_MANAGER_METER_SETUP,
-  QUEUES.PORTFOLIO_MANAGER_USAGE,
-  QUEUES.PORTFOLIO_MANAGER_PROVIDER_SYNC,
+const LOGICAL_QUEUE_TYPES = [
+  {
+    name: "data-ingestion",
+    types: ["CSV_UPLOAD_PIPELINE", "GREEN_BUTTON_NOTIFICATION"],
+  },
+  {
+    name: "utility-bill-extraction",
+    types: ["UTILITY_BILL_EXTRACTION"],
+  },
+  {
+    name: "portfolio-manager-provisioning",
+    types: ["PORTFOLIO_MANAGER_PROPERTY_PROVISIONING"],
+  },
+  {
+    name: "portfolio-manager-import",
+    types: ["PORTFOLIO_MANAGER_EXISTING_ACCOUNT_IMPORT"],
+  },
+  {
+    name: "portfolio-manager-provider-sync",
+    types: ["PORTFOLIO_MANAGER_PROVIDER_SYNC"],
+  },
+  {
+    name: "portfolio-manager-setup",
+    types: ["PORTFOLIO_MANAGER_PROPERTY_USE_SETUP"],
+  },
+  {
+    name: "portfolio-manager-meter-setup",
+    types: [
+      "PORTFOLIO_MANAGER_METER_SETUP",
+      "PORTFOLIO_MANAGER_METER_ASSOCIATION_SETUP",
+    ],
+  },
+  {
+    name: "portfolio-manager-usage",
+    types: [
+      "PORTFOLIO_MANAGER_USAGE_IMPORT",
+      "PORTFOLIO_MANAGER_USAGE_PUSH",
+      "PORTFOLIO_MANAGER_FULL_PULL",
+    ],
+  },
 ] as const;
-
-type WorkerHeartbeatPayload = {
-  updatedAt: string;
-  workers: string[];
-};
-
-function toHeartbeatPayload(value: unknown): WorkerHeartbeatPayload | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return null;
-  }
-
-  const record = value as Record<string, unknown>;
-  const updatedAt =
-    typeof record.updatedAt === "string" && record.updatedAt.trim().length > 0
-      ? record.updatedAt
-      : null;
-  const workers = Array.isArray(record.workers)
-    ? record.workers
-        .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-        .map((item) => item.trim())
-    : [];
-
-  if (!updatedAt) {
-    return null;
-  }
-
-  return {
-    updatedAt,
-    workers,
-  };
-}
-
-export async function publishWorkerHeartbeat(workers: string[]) {
-  const redis = getRedis();
-  const payload: WorkerHeartbeatPayload = {
-    updatedAt: new Date().toISOString(),
-    workers,
-  };
-
-  await redis.set(
-    WORKER_HEARTBEAT_KEY,
-    JSON.stringify(payload),
-    "EX",
-    WORKER_HEARTBEAT_TTL_SECONDS,
-  );
-
-  return payload;
-}
 
 export type WorkerRuntimeHealth = {
   workerStatus: "HEALTHY" | "OFFLINE" | "UNAVAILABLE";
@@ -75,38 +54,6 @@ export type WorkerRuntimeHealth = {
   queuesHealthy: boolean;
   activeWorkers: string[];
 };
-
-export async function getWorkerRuntimeHealth(): Promise<WorkerRuntimeHealth> {
-  try {
-    const raw = await runRedisHealthCommand((redis) => redis.get(WORKER_HEARTBEAT_KEY));
-    let heartbeat: WorkerHeartbeatPayload | null = null;
-    if (raw) {
-      try {
-        heartbeat = toHeartbeatPayload(JSON.parse(raw));
-      } catch {
-        heartbeat = null;
-      }
-    }
-    const lastHeartbeatAt = heartbeat?.updatedAt ?? null;
-    const freshnessMs = lastHeartbeatAt
-      ? Date.now() - new Date(lastHeartbeatAt).getTime()
-      : Number.POSITIVE_INFINITY;
-
-    return {
-      workerStatus: freshnessMs <= WORKER_STALE_THRESHOLD_MS ? "HEALTHY" : "OFFLINE",
-      lastHeartbeatAt,
-      queuesHealthy: true,
-      activeWorkers: heartbeat?.workers ?? [],
-    };
-  } catch {
-    return {
-      workerStatus: "UNAVAILABLE",
-      lastHeartbeatAt: null,
-      queuesHealthy: false,
-      activeWorkers: [],
-    };
-  }
-}
 
 export type JobRuntimeHealth = {
   latestJobId: string | null;
@@ -117,6 +64,79 @@ export type JobRuntimeHealth = {
   latestJobError: string | null;
   stalled: boolean;
 };
+
+export type PmRuntimeHealth = WorkerRuntimeHealth & {
+  latestJob: JobRuntimeHealth;
+  warning: string | null;
+};
+
+export type QueueRuntimeHealth = {
+  name: string;
+  status: "HEALTHY" | "ATTENTION" | "UNAVAILABLE";
+  waitingCount: number;
+  activeCount: number;
+  delayedCount: number;
+  failedCount: number;
+  completedCount: number;
+};
+
+export type PlatformRuntimeHealth = {
+  status: "ok" | "degraded";
+  timestamp: string;
+  build: {
+    version: string;
+    commitSha: string | null;
+    runtime: string;
+  };
+  services: {
+    database: "ok" | "error";
+    redis: "ok" | "error";
+    worker: WorkerRuntimeHealth;
+  };
+  queues: {
+    healthy: boolean;
+    items: QueueRuntimeHealth[];
+  };
+  jobs: {
+    queuedCount: number;
+    runningCount: number;
+    failedCount: number;
+    deadCount: number;
+    stalledCount: number;
+    latestFailureClass: string | null;
+  };
+  integrations: {
+    portfolioManagerFailures: number;
+    greenButtonFailures: number;
+    utilityBillFailures: number;
+  };
+};
+
+export async function publishWorkerHeartbeat(workers: string[]) {
+  return {
+    updatedAt: new Date().toISOString(),
+    workers,
+  };
+}
+
+async function getWorkerRuntimeHealth(db: PrismaClient = prisma): Promise<WorkerRuntimeHealth> {
+  try {
+    await db.$queryRaw`SELECT 1`;
+    return {
+      workerStatus: "HEALTHY",
+      lastHeartbeatAt: null,
+      queuesHealthy: true,
+      activeWorkers: ["workflow"],
+    };
+  } catch {
+    return {
+      workerStatus: "UNAVAILABLE",
+      lastHeartbeatAt: null,
+      queuesHealthy: false,
+      activeWorkers: [],
+    };
+  }
+}
 
 async function getJobRuntimeHealth(input: {
   latestJobId?: string | null;
@@ -160,11 +180,18 @@ async function getJobRuntimeHealth(input: {
     };
   }
 
+  const thresholdMs =
+    job.status === JOB_STATUS.QUEUED
+      ? QUEUED_JOB_STALE_THRESHOLD_MS
+      : job.status === JOB_STATUS.RUNNING
+        ? JOB_STALE_THRESHOLD_MS
+        : null;
   const ageFrom = job.startedAt ?? job.createdAt;
   const stalled =
     input.active &&
     job.completedAt == null &&
-    Date.now() - ageFrom.getTime() > JOB_STALE_THRESHOLD_MS;
+    thresholdMs != null &&
+    Date.now() - ageFrom.getTime() > thresholdMs;
 
   return {
     latestJobId: job.id,
@@ -177,29 +204,26 @@ async function getJobRuntimeHealth(input: {
   };
 }
 
-export type PmRuntimeHealth = WorkerRuntimeHealth & {
-  latestJob: JobRuntimeHealth;
-  warning: string | null;
-};
-
 export async function getPmRuntimeHealth(input: {
   latestJobId?: string | null;
   active: boolean;
   db?: PrismaClient;
 }): Promise<PmRuntimeHealth> {
+  const db = input.db ?? prisma;
   const [worker, latestJob] = await Promise.all([
-    getWorkerRuntimeHealth(),
-    getJobRuntimeHealth(input),
+    getWorkerRuntimeHealth(db),
+    getJobRuntimeHealth({
+      latestJobId: input.latestJobId,
+      active: input.active,
+      db,
+    }),
   ]);
 
   let warning: string | null = null;
-  if (input.active && worker.workerStatus !== "HEALTHY") {
-    warning =
-      worker.workerStatus === "UNAVAILABLE"
-        ? "Background Portfolio Manager sync is unavailable right now."
-        : "Background Portfolio Manager worker appears offline right now.";
-  } else if (input.active && latestJob.stalled) {
-    warning = "The latest PM job appears stalled and may need operator attention.";
+  if (input.active && latestJob.stalled) {
+    warning = "The latest Portfolio Manager job appears stalled and may need a retry.";
+  } else if (latestJob.latestJobStatus === JOB_STATUS.FAILED || latestJob.latestJobStatus === JOB_STATUS.DEAD) {
+    warning = latestJob.latestJobError ?? "The latest Portfolio Manager job failed.";
   }
 
   return {
@@ -209,89 +233,51 @@ export async function getPmRuntimeHealth(input: {
   };
 }
 
-export type QueueRuntimeHealth = {
-  name: string;
-  status: "HEALTHY" | "ATTENTION" | "UNAVAILABLE";
-  waitingCount: number;
-  activeCount: number;
-  delayedCount: number;
-  failedCount: number;
-  completedCount: number;
-};
+async function getLogicalQueueRuntimeHealth(input: {
+  db: PrismaClient;
+  groupedCounts: Array<{
+    type: string;
+    status: string;
+    _count: { _all: number };
+  }>;
+}): Promise<QueueRuntimeHealth[]> {
+  const countByTypeStatus = new Map<string, number>();
+  for (const item of input.groupedCounts) {
+    countByTypeStatus.set(`${item.type}:${item.status}`, item._count._all);
+  }
 
-async function getQueueRuntimeHealth(name: string): Promise<QueueRuntimeHealth> {
-  const queue = createQueue(name);
-
-  try {
-    const [waitingCount, activeCount, delayedCount, failedCount, completedCount] =
-      await Promise.all([
-        queue.getWaitingCount(),
-        queue.getActiveCount(),
-        queue.getDelayedCount(),
-        queue.getFailedCount(),
-        queue.getCompletedCount(),
-      ]);
-
-    const status =
-      failedCount > 0 || waitingCount > 100 || delayedCount > 100
-        ? "ATTENTION"
-        : "HEALTHY";
+  return LOGICAL_QUEUE_TYPES.map((queue) => {
+    const waitingCount = queue.types.reduce(
+      (sum, type) => sum + (countByTypeStatus.get(`${type}:${JOB_STATUS.QUEUED}`) ?? 0),
+      0,
+    );
+    const activeCount = queue.types.reduce(
+      (sum, type) => sum + (countByTypeStatus.get(`${type}:${JOB_STATUS.RUNNING}`) ?? 0),
+      0,
+    );
+    const failedCount = queue.types.reduce(
+      (sum, type) =>
+        sum +
+        (countByTypeStatus.get(`${type}:${JOB_STATUS.FAILED}`) ?? 0) +
+        (countByTypeStatus.get(`${type}:${JOB_STATUS.DEAD}`) ?? 0),
+      0,
+    );
+    const completedCount = queue.types.reduce(
+      (sum, type) => sum + (countByTypeStatus.get(`${type}:${JOB_STATUS.COMPLETED}`) ?? 0),
+      0,
+    );
 
     return {
-      name,
-      status,
+      name: queue.name,
+      status: failedCount > 0 ? "ATTENTION" : "HEALTHY",
       waitingCount,
       activeCount,
-      delayedCount,
+      delayedCount: 0,
       failedCount,
       completedCount,
-    };
-  } catch {
-    return {
-      name,
-      status: "UNAVAILABLE",
-      waitingCount: 0,
-      activeCount: 0,
-      delayedCount: 0,
-      failedCount: 0,
-      completedCount: 0,
-    };
-  } finally {
-    await queue.close().catch(() => null);
-  }
+    } satisfies QueueRuntimeHealth;
+  });
 }
-
-export type PlatformRuntimeHealth = {
-  status: "ok" | "degraded";
-  timestamp: string;
-  build: {
-    version: string;
-    commitSha: string | null;
-    runtime: string;
-  };
-  services: {
-    database: "ok" | "error";
-    redis: "ok" | "error";
-    worker: WorkerRuntimeHealth;
-  };
-  queues: {
-    healthy: boolean;
-    items: QueueRuntimeHealth[];
-  };
-  jobs: {
-    queuedCount: number;
-    runningCount: number;
-    failedCount: number;
-    deadCount: number;
-    stalledCount: number;
-    latestFailureClass: string | null;
-  };
-  integrations: {
-    portfolioManagerFailures: number;
-    greenButtonFailures: number;
-    utilityBillFailures: number;
-  };
-};
 
 export async function getPlatformRuntimeHealth(input?: {
   db?: PrismaClient;
@@ -299,18 +285,11 @@ export async function getPlatformRuntimeHealth(input?: {
   const db = input?.db ?? prisma;
   const timestamp = new Date().toISOString();
   let database: "ok" | "error" = "ok";
-  let redis: "ok" | "error" = "ok";
 
   try {
     await db.$queryRaw`SELECT 1`;
   } catch {
     database = "error";
-  }
-
-  try {
-    await runRedisHealthCommand((client) => client.ping());
-  } catch {
-    redis = "error";
   }
 
   const now = Date.now();
@@ -319,7 +298,7 @@ export async function getPlatformRuntimeHealth(input?: {
 
   const [
     worker,
-    queues,
+    groupedJobCounts,
     queuedCount,
     runningCount,
     failedCount,
@@ -331,28 +310,33 @@ export async function getPlatformRuntimeHealth(input?: {
     greenButtonFailures,
     utilityBillFailures,
   ] = await Promise.all([
-    getWorkerRuntimeHealth(),
-    Promise.all(ACTIVE_QUEUE_NAMES.map((name) => getQueueRuntimeHealth(name))),
-    db.job.count({ where: { status: "QUEUED" } }),
-    db.job.count({ where: { status: "RUNNING" } }),
-    db.job.count({ where: { status: "FAILED" } }),
-    db.job.count({ where: { status: "DEAD" } }),
+    getWorkerRuntimeHealth(db),
+    db.job.groupBy({
+      by: ["type", "status"],
+      _count: {
+        _all: true,
+      },
+    }),
+    db.job.count({ where: { status: JOB_STATUS.QUEUED } }),
+    db.job.count({ where: { status: JOB_STATUS.RUNNING } }),
+    db.job.count({ where: { status: JOB_STATUS.FAILED } }),
+    db.job.count({ where: { status: JOB_STATUS.DEAD } }),
     db.job.count({
       where: {
-        status: "RUNNING",
+        status: JOB_STATUS.RUNNING,
         startedAt: { lt: stalledRunningBefore },
       },
     }),
     db.job.count({
       where: {
-        status: "QUEUED",
+        status: JOB_STATUS.QUEUED,
         createdAt: { lt: staleQueuedBefore },
       },
     }),
     db.job.findFirst({
       where: {
         status: {
-          in: ["FAILED", "DEAD"],
+          in: [JOB_STATUS.FAILED, JOB_STATUS.DEAD],
         },
       },
       orderBy: [{ createdAt: "desc" }],
@@ -377,12 +361,15 @@ export async function getPlatformRuntimeHealth(input?: {
     }),
   ]);
 
+  const queues = await getLogicalQueueRuntimeHealth({
+    db,
+    groupedCounts: groupedJobCounts,
+  });
   const queuesHealthy = queues.every((queue) => queue.status === "HEALTHY");
   const stalledCount = stalledRunningCount + staleQueuedCount;
   const status =
     database === "ok" &&
-    redis === "ok" &&
-    worker.workerStatus === "HEALTHY" &&
+    worker.workerStatus !== "UNAVAILABLE" &&
     queuesHealthy &&
     stalledCount === 0
       ? "ok"
@@ -402,8 +389,11 @@ export async function getPlatformRuntimeHealth(input?: {
     },
     services: {
       database,
-      redis,
-      worker,
+      redis: "ok",
+      worker: {
+        ...worker,
+        queuesHealthy,
+      },
     },
     queues: {
       healthy: queuesHealthy,
