@@ -1,14 +1,35 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma";
 
+const IS_VERCEL_RUNTIME = Boolean(process.env["VERCEL"] || process.env["VERCEL_ENV"]);
+
+function resolveRuntimeConnectionString() {
+  const pooledUrl = process.env["DATABASE_URL"];
+  const directUrl = process.env["DIRECT_URL"];
+
+  if (IS_VERCEL_RUNTIME) {
+    return pooledUrl ?? directUrl;
+  }
+
+  return directUrl ?? pooledUrl;
+}
+
 function createPrismaClient(): PrismaClient {
-  const connectionString = process.env["DIRECT_URL"] ?? process.env["DATABASE_URL"];
+  const connectionString = resolveRuntimeConnectionString();
   if (!connectionString) {
     throw new Error("DIRECT_URL or DATABASE_URL is required");
   }
 
   const adapter = new PrismaPg({
     connectionString,
+    ...(IS_VERCEL_RUNTIME
+      ? {
+          // Keep Vercel function instances from exhausting the Supabase pooler.
+          max: 1,
+          idleTimeoutMillis: 5_000,
+          connectionTimeoutMillis: 15_000,
+        }
+      : {}),
   });
   return new PrismaClient({ adapter });
 }

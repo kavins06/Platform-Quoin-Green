@@ -120,23 +120,13 @@ export async function publishWorkerHeartbeat(workers: string[]) {
   };
 }
 
-async function getWorkerRuntimeHealth(db: PrismaClient = prisma): Promise<WorkerRuntimeHealth> {
-  try {
-    await db.$queryRaw`SELECT 1`;
-    return {
-      workerStatus: "HEALTHY",
-      lastHeartbeatAt: null,
-      queuesHealthy: true,
-      activeWorkers: ["workflow"],
-    };
-  } catch {
-    return {
-      workerStatus: "UNAVAILABLE",
-      lastHeartbeatAt: null,
-      queuesHealthy: false,
-      activeWorkers: [],
-    };
-  }
+function getWorkerRuntimeHealth(): WorkerRuntimeHealth {
+  return {
+    workerStatus: "HEALTHY",
+    lastHeartbeatAt: null,
+    queuesHealthy: true,
+    activeWorkers: ["workflow"],
+  };
 }
 
 async function getJobRuntimeHealth(input: {
@@ -212,7 +202,7 @@ export async function getPmRuntimeHealth(input: {
 }): Promise<PmRuntimeHealth> {
   const db = input.db ?? prisma;
   const [worker, latestJob] = await Promise.all([
-    getWorkerRuntimeHealth(db),
+    Promise.resolve(getWorkerRuntimeHealth()),
     getJobRuntimeHealth({
       latestJobId: input.latestJobId,
       active: input.active,
@@ -316,135 +306,9 @@ async function getReferencedLatestJobIds(db: PrismaClient) {
     .filter((id): id is string => typeof id === "string" && id.length > 0);
 }
 
-export async function getPlatformRuntimeHealth(input?: {
-  db?: PrismaClient;
-}): Promise<PlatformRuntimeHealth> {
-  const db = input?.db ?? prisma;
-  const timestamp = new Date().toISOString();
-  let database: "ok" | "error" = "ok";
-
-  try {
-    await db.$queryRaw`SELECT 1`;
-  } catch {
-    database = "error";
-  }
-
-  const now = Date.now();
-  const stalledRunningBefore = new Date(now - JOB_STALE_THRESHOLD_MS);
-  const staleQueuedBefore = new Date(now - QUEUED_JOB_STALE_THRESHOLD_MS);
-  const recentFailureAfter = new Date(now - HEALTH_FAILURE_WINDOW_MS);
-
-  const [
-    worker,
-    groupedJobCounts,
-    recentFailureGroupedJobCounts,
-    queuedCount,
-    runningCount,
-    failedCount,
-    deadCount,
-    latestJobIds,
-    latestFailedJob,
-    portfolioManagerFailures,
-    greenButtonFailures,
-    utilityBillFailures,
-  ] = await Promise.all([
-    getWorkerRuntimeHealth(db),
-    db.job.groupBy({
-      by: ["type", "status"],
-      _count: {
-        _all: true,
-      },
-    }),
-    db.job.groupBy({
-      by: ["type", "status"],
-      where: {
-        status: {
-          in: [JOB_STATUS.FAILED, JOB_STATUS.DEAD],
-        },
-        OR: [
-          { completedAt: { gte: recentFailureAfter } },
-          { createdAt: { gte: recentFailureAfter } },
-        ],
-      },
-      _count: {
-        _all: true,
-      },
-    }),
-    db.job.count({ where: { status: JOB_STATUS.QUEUED } }),
-    db.job.count({ where: { status: JOB_STATUS.RUNNING } }),
-    db.job.count({ where: { status: JOB_STATUS.FAILED } }),
-    db.job.count({ where: { status: JOB_STATUS.DEAD } }),
-    getReferencedLatestJobIds(db),
-    db.job.findFirst({
-      where: {
-        status: {
-          in: [JOB_STATUS.FAILED, JOB_STATUS.DEAD],
-        },
-        OR: [
-          { completedAt: { gte: recentFailureAfter } },
-          { createdAt: { gte: recentFailureAfter } },
-        ],
-      },
-      orderBy: [{ createdAt: "desc" }],
-      select: {
-        type: true,
-      },
-    }),
-    db.portfolioManagerImportState.count({
-      where: {
-        status: "FAILED",
-      },
-    }),
-    db.greenButtonConnection.count({
-      where: {
-        status: "FAILED",
-      },
-    }),
-    db.utilityBillUpload.count({
-      where: {
-        status: "FAILED",
-      },
-    }),
-  ]);
-
-  const queues = await getLogicalQueueRuntimeHealth({
-    groupedCounts: groupedJobCounts,
-    recentFailureCounts: recentFailureGroupedJobCounts,
-  });
-  const stalledWhere =
-    latestJobIds.length > 0
-      ? {
-          id: { in: latestJobIds },
-        }
-      : undefined;
-  const [stalledRunningCount, staleQueuedCount] = await Promise.all([
-    db.job.count({
-      where: {
-        status: JOB_STATUS.RUNNING,
-        startedAt: { lt: stalledRunningBefore },
-        ...(stalledWhere ?? {}),
-      },
-    }),
-    db.job.count({
-      where: {
-        status: JOB_STATUS.QUEUED,
-        createdAt: { lt: staleQueuedBefore },
-        ...(stalledWhere ?? {}),
-      },
-    }),
-  ]);
-  const queuesHealthy = queues.every((queue) => queue.status === "HEALTHY");
-  const stalledCount = stalledRunningCount + staleQueuedCount;
-  const status =
-    database === "ok" &&
-    worker.workerStatus !== "UNAVAILABLE" &&
-    queuesHealthy &&
-    stalledCount === 0
-      ? "ok"
-      : "degraded";
-
+function buildUnavailableRuntimeHealth(timestamp: string): PlatformRuntimeHealth {
   return {
-    status,
+    status: "degraded",
     timestamp,
     build: {
       version: packageJson.version,
@@ -456,29 +320,193 @@ export async function getPlatformRuntimeHealth(input?: {
       runtime: process.version,
     },
     services: {
-      database,
+      database: "error",
       redis: "ok",
       worker: {
-        ...worker,
-        queuesHealthy,
+        workerStatus: "UNAVAILABLE",
+        lastHeartbeatAt: null,
+        queuesHealthy: false,
+        activeWorkers: [],
       },
     },
     queues: {
-      healthy: queuesHealthy,
-      items: queues,
+      healthy: false,
+      items: [],
     },
     jobs: {
+      queuedCount: 0,
+      runningCount: 0,
+      failedCount: 0,
+      deadCount: 0,
+      stalledCount: 0,
+      latestFailureClass: null,
+    },
+    integrations: {
+      portfolioManagerFailures: 0,
+      greenButtonFailures: 0,
+      utilityBillFailures: 0,
+    },
+  };
+}
+
+export async function getPlatformRuntimeHealth(input?: {
+  db?: PrismaClient;
+}): Promise<PlatformRuntimeHealth> {
+  const db = input?.db ?? prisma;
+  const timestamp = new Date().toISOString();
+  try {
+    await db.$queryRaw`SELECT 1`;
+    const now = Date.now();
+    const stalledRunningBefore = new Date(now - JOB_STALE_THRESHOLD_MS);
+    const staleQueuedBefore = new Date(now - QUEUED_JOB_STALE_THRESHOLD_MS);
+    const recentFailureAfter = new Date(now - HEALTH_FAILURE_WINDOW_MS);
+
+    const [
+      groupedJobCounts,
+      recentFailureGroupedJobCounts,
       queuedCount,
       runningCount,
       failedCount,
       deadCount,
-      stalledCount,
-      latestFailureClass: latestFailedJob?.type ?? null,
-    },
-    integrations: {
+      latestJobIds,
+      latestFailedJob,
       portfolioManagerFailures,
       greenButtonFailures,
       utilityBillFailures,
-    },
-  };
+    ] = await Promise.all([
+      db.job.groupBy({
+        by: ["type", "status"],
+        _count: {
+          _all: true,
+        },
+      }),
+      db.job.groupBy({
+        by: ["type", "status"],
+        where: {
+          status: {
+            in: [JOB_STATUS.FAILED, JOB_STATUS.DEAD],
+          },
+          OR: [
+            { completedAt: { gte: recentFailureAfter } },
+            { createdAt: { gte: recentFailureAfter } },
+          ],
+        },
+        _count: {
+          _all: true,
+        },
+      }),
+      db.job.count({ where: { status: JOB_STATUS.QUEUED } }),
+      db.job.count({ where: { status: JOB_STATUS.RUNNING } }),
+      db.job.count({ where: { status: JOB_STATUS.FAILED } }),
+      db.job.count({ where: { status: JOB_STATUS.DEAD } }),
+      getReferencedLatestJobIds(db),
+      db.job.findFirst({
+        where: {
+          status: {
+            in: [JOB_STATUS.FAILED, JOB_STATUS.DEAD],
+          },
+          OR: [
+            { completedAt: { gte: recentFailureAfter } },
+            { createdAt: { gte: recentFailureAfter } },
+          ],
+        },
+        orderBy: [{ createdAt: "desc" }],
+        select: {
+          type: true,
+        },
+      }),
+      db.portfolioManagerImportState.count({
+        where: {
+          status: "FAILED",
+        },
+      }),
+      db.greenButtonConnection.count({
+        where: {
+          status: "FAILED",
+        },
+      }),
+      db.utilityBillUpload.count({
+        where: {
+          status: "FAILED",
+        },
+      }),
+    ]);
+
+    const queues = await getLogicalQueueRuntimeHealth({
+      groupedCounts: groupedJobCounts,
+      recentFailureCounts: recentFailureGroupedJobCounts,
+    });
+    const stalledWhere =
+      latestJobIds.length > 0
+        ? {
+            id: { in: latestJobIds },
+          }
+        : undefined;
+    const [stalledRunningCount, staleQueuedCount] = await Promise.all([
+      db.job.count({
+        where: {
+          status: JOB_STATUS.RUNNING,
+          startedAt: { lt: stalledRunningBefore },
+          ...(stalledWhere ?? {}),
+        },
+      }),
+      db.job.count({
+        where: {
+          status: JOB_STATUS.QUEUED,
+          createdAt: { lt: staleQueuedBefore },
+          ...(stalledWhere ?? {}),
+        },
+      }),
+    ]);
+    const worker = getWorkerRuntimeHealth();
+    const queuesHealthy = queues.every((queue) => queue.status === "HEALTHY");
+    const stalledCount = stalledRunningCount + staleQueuedCount;
+    const status =
+      queuesHealthy &&
+      stalledCount === 0
+        ? "ok"
+        : "degraded";
+
+    return {
+      status,
+      timestamp,
+      build: {
+        version: packageJson.version,
+        commitSha:
+          process.env.VERCEL_GIT_COMMIT_SHA ??
+          process.env.GITHUB_SHA ??
+          process.env.APP_BUILD_SHA ??
+          null,
+        runtime: process.version,
+      },
+      services: {
+        database: "ok",
+        redis: "ok",
+        worker: {
+          ...worker,
+          queuesHealthy,
+        },
+      },
+      queues: {
+        healthy: queuesHealthy,
+        items: queues,
+      },
+      jobs: {
+        queuedCount,
+        runningCount,
+        failedCount,
+        deadCount,
+        stalledCount,
+        latestFailureClass: latestFailedJob?.type ?? null,
+      },
+      integrations: {
+        portfolioManagerFailures,
+        greenButtonFailures,
+        utilityBillFailures,
+      },
+    };
+  } catch (error) {
+    console.error("[runtime-health] failed to assemble health snapshot", error);
+    return buildUnavailableRuntimeHealth(timestamp);
+  }
 }
