@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+.env*
+!.env.production
+!.env.production.template
+*.md
+test
+.specs
+deploy
+nginx

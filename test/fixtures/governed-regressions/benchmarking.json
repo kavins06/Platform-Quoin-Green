@@ -1,0 +1,89 @@
+[
+  {
+    "id": "benchmark-ready-private-office",
+    "name": "Private office with complete governed readiness inputs",
+    "reportingYear": 2025,
+    "evaluatedAt": "2026-01-15T00:00:00.000Z",
+    "building": {
+      "id": "fixture-benchmark-1",
+      "organizationId": "fixture-org",
+      "grossSquareFeet": 90000,
+      "ownershipType": "PRIVATE",
+      "doeeBuildingId": "RP-100",
+      "espmPropertyId": 1001,
+      "espmShareStatus": "LINKED"
+    },
+    "readings": [
+      { "meterType": "ELECTRIC", "source": "CSV_UPLOAD", "periodStart": "2025-01-01T00:00:00.000Z", "periodEnd": "2025-01-31T00:00:00.000Z" },
+      { "meterType": "ELECTRIC", "source": "CSV_UPLOAD", "periodStart": "2025-02-01T00:00:00.000Z", "periodEnd": "2025-02-28T00:00:00.000Z" },
+      { "meterType": "ELECTRIC", "source": "CSV_UPLOAD", "periodStart": "2025-03-01T00:00:00.000Z", "periodEnd": "2025-03-31T00:00:00.000Z" },
+      { "meterType": "ELECTRIC", "source": "CSV_UPLOAD", "periodStart": "2025-04-01T00:00:00.000Z", "periodEnd": "2025-04-30T00:00:00.000Z" },
+      { "meterType": "ELECTRIC", "source": "CSV_UPLOAD", "periodStart": "2025-05-01T00:00:00.000Z", "periodEnd": "2025-05-31T00:00:00.000Z" },
+      { "meterType": "ELECTRIC", "source": "CSV_UPLOAD", "periodStart": "2025-06-01T00:00:00.000Z", "periodEnd": "2025-06-30T00:00:00.000Z" },
+      { "meterType": "ELECTRIC", "source": "CSV_UPLOAD", "periodStart": "2025-07-01T00:00:00.000Z", "periodEnd": "2025-07-31T00:00:00.000Z" },
+      { "meterType": "ELECTRIC", "source": "CSV_UPLOAD", "periodStart": "2025-08-01T00:00:00.000Z", "periodEnd": "2025-08-31T00:00:00.000Z" },
+      { "meterType": "ELECTRIC", "source": "CSV_UPLOAD", "periodStart": "2025-09-01T00:00:00.000Z", "periodEnd": "2025-09-30T00:00:00.000Z" },
+      { "meterType": "ELECTRIC", "source": "CSV_UPLOAD", "periodStart": "2025-10-01T00:00:00.000Z", "periodEnd": "2025-10-31T00:00:00.000Z" },
+      { "meterType": "ELECTRIC", "source": "CSV_UPLOAD", "periodStart": "2025-11-01T00:00:00.000Z", "periodEnd": "2025-11-30T00:00:00.000Z" },
+      { "meterType": "ELECTRIC", "source": "CSV_UPLOAD", "periodStart": "2025-12-01T00:00:00.000Z", "periodEnd": "2025-12-31T00:00:00.000Z" }
+    ],
+    "evidenceArtifacts": [
+      {
+        "id": "benchmark-evidence-1",
+        "artifactType": "OTHER",
+        "name": "DQC report",
+        "artifactRef": "dqc-report-1",
+        "createdAt": "2026-01-05T00:00:00.000Z",
+        "metadata": {
+          "benchmarking": {
+            "kind": "DQC_REPORT",
+            "reportingYear": 2025,
+            "checkedAt": "2026-01-05T00:00:00.000Z"
+          }
+        },
+        "benchmarkSubmission": null
+      }
+    ],
+    "expected": {
+      "status": "READY",
+      "reasonCodes": [],
+      "scopeState": "IN_SCOPE",
+      "verificationRequired": false
+    }
+  },
+  {
+    "id": "benchmark-blocked-missing-core-inputs",
+    "name": "Private office missing property linkage and annual coverage",
+    "reportingYear": 2025,
+    "evaluatedAt": "2026-01-15T00:00:00.000Z",
+    "building": {
+      "id": "fixture-benchmark-2",
+      "organizationId": "fixture-org",
+      "grossSquareFeet": 90000,
+      "ownershipType": "PRIVATE",
+      "doeeBuildingId": null,
+      "espmPropertyId": null,
+      "espmShareStatus": "UNLINKED"
+    },
+    "readings": [
+      { "meterType": "ELECTRIC", "source": "CSV_UPLOAD", "periodStart": "2025-01-01T00:00:00.000Z", "periodEnd": "2025-01-31T00:00:00.000Z" },
+      { "meterType": "ELECTRIC", "source": "CSV_UPLOAD", "periodStart": "2025-02-01T00:00:00.000Z", "periodEnd": "2025-02-28T00:00:00.000Z" },
+      { "meterType": "ELECTRIC", "source": "CSV_UPLOAD", "periodStart": "2025-03-01T00:00:00.000Z", "periodEnd": "2025-03-31T00:00:00.000Z" },
+      { "meterType": "ELECTRIC", "source": "CSV_UPLOAD", "periodStart": "2025-04-01T00:00:00.000Z", "periodEnd": "2025-04-30T00:00:00.000Z" },
+      { "meterType": "ELECTRIC", "source": "CSV_UPLOAD", "periodStart": "2025-05-01T00:00:00.000Z", "periodEnd": "2025-05-31T00:00:00.000Z" },
+      { "meterType": "ELECTRIC", "source": "CSV_UPLOAD", "periodStart": "2025-06-01T00:00:00.000Z", "periodEnd": "2025-06-30T00:00:00.000Z" }
+    ],
+    "evidenceArtifacts": [],
+    "expected": {
+      "status": "BLOCKED",
+      "reasonCodes": [
+        "MISSING_PROPERTY_ID",
+        "MISSING_COVERAGE",
+        "PM_NOT_SHARED",
+        "DQC_STALE"
+      ],
+      "scopeState": "IN_SCOPE",
+      "verificationRequired": false
+    }
+  }
+]

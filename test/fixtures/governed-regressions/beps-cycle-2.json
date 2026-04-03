@@ -1,0 +1,80 @@
+[
+  {
+    "id": "beps-cycle-2-performance-compliant",
+    "name": "Cycle 2 building exceeding governed performance reduction",
+    "cycle": "CYCLE_2",
+    "evaluatedAt": "2031-03-01T00:00:00.000Z",
+    "building": {
+      "id": "fixture-beps-3",
+      "organizationId": "fixture-org",
+      "grossSquareFeet": 150000,
+      "propertyType": "OFFICE",
+      "ownershipType": "PRIVATE",
+      "yearBuilt": 2005,
+      "bepsTargetScore": 74,
+      "complianceCycle": "CYCLE_2",
+      "selectedPathway": null,
+      "baselineYear": 2026,
+      "targetEui": null,
+      "maxPenaltyExposure": 1500000,
+      "isEnergyStarScoreEligible": false
+    },
+    "snapshot": {
+      "id": "snapshot-3",
+      "snapshotDate": "2031-02-01T00:00:00.000Z",
+      "energyStarScore": null,
+      "siteEui": 80,
+      "sourceEui": 0,
+      "weatherNormalizedSiteEui": 80,
+      "weatherNormalizedSourceEui": 0,
+      "complianceStatus": "COMPLIANT",
+      "complianceGap": null,
+      "estimatedPenalty": null,
+      "dataQualityScore": 100,
+      "activePathway": "PERFORMANCE",
+      "targetEui": null,
+      "penaltyInputsJson": {}
+    },
+    "historicalMetrics": [],
+    "canonicalInputs": {
+      "metricInput": {
+        "id": "metric-3",
+        "filingYear": 2031,
+        "complianceCycle": "CYCLE_2",
+        "baselineYearStart": 2026,
+        "baselineYearEnd": 2026,
+        "evaluationYearStart": 2030,
+        "evaluationYearEnd": 2030,
+        "comparisonYear": null,
+        "delayedCycle1OptionApplied": false,
+        "baselineAdjustedSiteEui": 110,
+        "evaluationAdjustedSiteEui": 80,
+        "baselineWeatherNormalizedSiteEui": 110,
+        "evaluationWeatherNormalizedSiteEui": 80,
+        "baselineWeatherNormalizedSourceEui": null,
+        "evaluationWeatherNormalizedSourceEui": null,
+        "baselineEnergyStarScore": null,
+        "evaluationEnergyStarScore": null,
+        "baselineSnapshotId": null,
+        "evaluationSnapshotId": null,
+        "sourceArtifactId": null,
+        "notesJson": {}
+      },
+      "prescriptiveItems": [],
+      "prescriptiveSummary": {
+        "pointsEarned": null,
+        "pointsNeeded": null,
+        "requirementsMet": null,
+        "requiredItemCount": 0,
+        "satisfiedRequiredItemCount": 0,
+        "itemsCount": 0
+      },
+      "alternativeComplianceAgreement": null
+    },
+    "expected": {
+      "overallStatus": "COMPLIANT",
+      "selectedPathway": "PERFORMANCE",
+      "recommendedPenaltyAmount": 0
+    }
+  }
+]

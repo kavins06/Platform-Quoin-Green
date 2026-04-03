@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:espi="http://naesb.org/espi">
+  <id>urn:uuid:gas-feed</id>
+  <title>Gas Data Feed</title>
+  <updated>2025-01-15T00:00:00Z</updated>
+
+  <entry>
+    <id>urn:uuid:reading-type-gas</id>
+    <title>ReadingType</title>
+    <content>
+      <ReadingType xmlns="http://naesb.org/espi">
+        <commodity>1</commodity>
+        <uom>169</uom>
+        <powerOfTenMultiplier>0</powerOfTenMultiplier>
+        <flowDirection>1</flowDirection>
+        <accumulationBehaviour>4</accumulationBehaviour>
+      </ReadingType>
+    </content>
+  </entry>
+
+  <entry>
+    <id>urn:uuid:interval-block-gas</id>
+    <title>IntervalBlock</title>
+    <content>
+      <IntervalBlock xmlns="http://naesb.org/espi">
+        <IntervalReading>
+          <timePeriod>
+            <start>1736899200</start>
+            <duration>86400</duration>
+          </timePeriod>
+          <value>15</value>
+          <qualityOfReading>0</qualityOfReading>
+        </IntervalReading>
+      </IntervalBlock>
+    </content>
+  </entry>
+</feed>

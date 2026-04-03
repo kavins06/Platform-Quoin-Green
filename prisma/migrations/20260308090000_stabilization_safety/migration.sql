@@ -1,0 +1,7 @@
+-- Compatibility placeholder for legacy databases.
+--
+-- This migration previously introduced a set of stabilization columns that are
+-- no longer part of the canonical Prisma schema. Older dev databases may
+-- already record this migration in `_prisma_migrations`; reintroducing the
+-- directory keeps migrate history consistent without reintroducing that schema
+-- drift on fresh databases.

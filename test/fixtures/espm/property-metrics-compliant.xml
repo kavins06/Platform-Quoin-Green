@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<propertyMetrics propertyId="12345" month="12" year="2025" measurementSystem="EPA">
+  <metric name="score" dataType="numeric">
+    <value>78</value>
+  </metric>
+  <metric name="siteTotal" uom="kBtu" dataType="numeric">
+    <value>11526000</value>
+  </metric>
+  <metric name="sourceTotal" uom="kBtu" dataType="numeric">
+    <value>26983200</value>
+  </metric>
+  <metric name="siteIntensity" uom="kBtu/ft²" dataType="numeric">
+    <value>62.3</value>
+  </metric>
+  <metric name="sourceIntensity" uom="kBtu/ft²" dataType="numeric">
+    <value>145.8</value>
+  </metric>
+  <metric name="weatherNormalizedSiteIntensity" uom="kBtu/ft²" dataType="numeric">
+    <value>59.8</value>
+  </metric>
+  <metric name="directGHGEmissions" dataType="numeric">
+    <value>285.4</value>
+  </metric>
+  <metric name="medianScore" dataType="numeric">
+    <value>50</value>
+  </metric>
+</propertyMetrics>

@@ -1,0 +1,158 @@
+[
+  {
+    "id": "beps-cycle-1-performance-compliant",
+    "name": "Cycle 1 building exceeding governed performance reduction",
+    "cycle": "CYCLE_1",
+    "evaluatedAt": "2026-03-01T00:00:00.000Z",
+    "building": {
+      "id": "fixture-beps-1",
+      "organizationId": "fixture-org",
+      "grossSquareFeet": 120000,
+      "propertyType": "OFFICE",
+      "ownershipType": "PRIVATE",
+      "yearBuilt": 2000,
+      "bepsTargetScore": 71,
+      "complianceCycle": "CYCLE_1",
+      "selectedPathway": null,
+      "baselineYear": 2020,
+      "targetEui": null,
+      "maxPenaltyExposure": 1200000,
+      "isEnergyStarScoreEligible": false
+    },
+    "snapshot": {
+      "id": "snapshot-1",
+      "snapshotDate": "2026-02-01T00:00:00.000Z",
+      "energyStarScore": null,
+      "siteEui": 75,
+      "sourceEui": 0,
+      "weatherNormalizedSiteEui": 75,
+      "weatherNormalizedSourceEui": 0,
+      "complianceStatus": "COMPLIANT",
+      "complianceGap": null,
+      "estimatedPenalty": null,
+      "dataQualityScore": 100,
+      "activePathway": "PERFORMANCE",
+      "targetEui": null,
+      "penaltyInputsJson": {}
+    },
+    "historicalMetrics": [],
+    "canonicalInputs": {
+      "metricInput": {
+        "id": "metric-1",
+        "filingYear": 2026,
+        "complianceCycle": "CYCLE_1",
+        "baselineYearStart": 2020,
+        "baselineYearEnd": 2020,
+        "evaluationYearStart": 2025,
+        "evaluationYearEnd": 2025,
+        "comparisonYear": null,
+        "delayedCycle1OptionApplied": false,
+        "baselineAdjustedSiteEui": 100,
+        "evaluationAdjustedSiteEui": 75,
+        "baselineWeatherNormalizedSiteEui": 100,
+        "evaluationWeatherNormalizedSiteEui": 75,
+        "baselineWeatherNormalizedSourceEui": null,
+        "evaluationWeatherNormalizedSourceEui": null,
+        "baselineEnergyStarScore": null,
+        "evaluationEnergyStarScore": null,
+        "baselineSnapshotId": null,
+        "evaluationSnapshotId": null,
+        "sourceArtifactId": null,
+        "notesJson": {}
+      },
+      "prescriptiveItems": [],
+      "prescriptiveSummary": {
+        "pointsEarned": null,
+        "pointsNeeded": null,
+        "requirementsMet": null,
+        "requiredItemCount": 0,
+        "satisfiedRequiredItemCount": 0,
+        "itemsCount": 0
+      },
+      "alternativeComplianceAgreement": null
+    },
+    "expected": {
+      "overallStatus": "COMPLIANT",
+      "selectedPathway": "PERFORMANCE",
+      "recommendedPenaltyAmount": 0
+    }
+  },
+  {
+    "id": "beps-cycle-1-performance-non-compliant",
+    "name": "Cycle 1 building with partial performance reduction",
+    "cycle": "CYCLE_1",
+    "evaluatedAt": "2026-03-01T00:00:00.000Z",
+    "building": {
+      "id": "fixture-beps-2",
+      "organizationId": "fixture-org",
+      "grossSquareFeet": 120000,
+      "propertyType": "OFFICE",
+      "ownershipType": "PRIVATE",
+      "yearBuilt": 2000,
+      "bepsTargetScore": 71,
+      "complianceCycle": "CYCLE_1",
+      "selectedPathway": null,
+      "baselineYear": 2020,
+      "targetEui": null,
+      "maxPenaltyExposure": 1200000,
+      "isEnergyStarScoreEligible": false
+    },
+    "snapshot": {
+      "id": "snapshot-2",
+      "snapshotDate": "2026-02-01T00:00:00.000Z",
+      "energyStarScore": null,
+      "siteEui": 90,
+      "sourceEui": 0,
+      "weatherNormalizedSiteEui": 90,
+      "weatherNormalizedSourceEui": 0,
+      "complianceStatus": "NON_COMPLIANT",
+      "complianceGap": null,
+      "estimatedPenalty": null,
+      "dataQualityScore": 100,
+      "activePathway": "PERFORMANCE",
+      "targetEui": null,
+      "penaltyInputsJson": {}
+    },
+    "historicalMetrics": [],
+    "canonicalInputs": {
+      "metricInput": {
+        "id": "metric-2",
+        "filingYear": 2026,
+        "complianceCycle": "CYCLE_1",
+        "baselineYearStart": 2020,
+        "baselineYearEnd": 2020,
+        "evaluationYearStart": 2025,
+        "evaluationYearEnd": 2025,
+        "comparisonYear": null,
+        "delayedCycle1OptionApplied": false,
+        "baselineAdjustedSiteEui": 100,
+        "evaluationAdjustedSiteEui": 90,
+        "baselineWeatherNormalizedSiteEui": 100,
+        "evaluationWeatherNormalizedSiteEui": 90,
+        "baselineWeatherNormalizedSourceEui": null,
+        "evaluationWeatherNormalizedSourceEui": null,
+        "baselineEnergyStarScore": null,
+        "evaluationEnergyStarScore": null,
+        "baselineSnapshotId": null,
+        "evaluationSnapshotId": null,
+        "sourceArtifactId": null,
+        "notesJson": {}
+      },
+      "prescriptiveItems": [],
+      "prescriptiveSummary": {
+        "pointsEarned": null,
+        "pointsNeeded": null,
+        "requirementsMet": null,
+        "requiredItemCount": 0,
+        "satisfiedRequiredItemCount": 0,
+        "itemsCount": 0
+      },
+      "alternativeComplianceAgreement": null
+    },
+    "expected": {
+      "overallStatus": "NON_COMPLIANT",
+      "selectedPathway": "PERFORMANCE",
+      "recommendedPenaltyAmount": 600000
+    }
+  }
+]

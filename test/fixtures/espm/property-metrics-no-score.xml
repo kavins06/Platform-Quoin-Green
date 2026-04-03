@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<propertyMetrics propertyId="11111" month="12" year="2025" measurementSystem="EPA">
+  <metric name="score" dataType="numeric">
+    <value xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:nil="true"/>
+  </metric>
+  <metric name="siteTotal" uom="kBtu" dataType="numeric">
+    <value>9500000</value>
+  </metric>
+  <metric name="siteIntensity" uom="kBtu/ft²" dataType="numeric">
+    <value>95.0</value>
+  </metric>
+</propertyMetrics>

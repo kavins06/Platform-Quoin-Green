@@ -1,0 +1,59 @@
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# Local environment and secrets
+.env
+.env*.local
+.env.production
+.env.ec2
+*.pem
+/.secrets/
+
+# Build output
+/.next/
+/out/
+/build/
+/dist/
+/coverage/
+*.tsbuildinfo
+
+# Generated source
+/src/generated/prisma
+
+# Runtime and local tooling artifacts
+/.codex-runtime/
+/.codex-local/
+/.codex-logs/
+/.codex-temp/
+/.playwright-cli/
+/.logs/
+/tmp/
+/.specs/
+.next.stale*/
+.vercel
+
+# Logs and debug output
+*.log
+*.log.*
+*.out
+*.err
+/build-run.log
+/.tmp-*.log
+/out.txt
+/vitest-out.txt
+/standalone.tar.gz
+/remote-setup.sh
+output_*.html
+push_error.txt
+
+# Editor and OS noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Next.js generated type shim
+next-env.d.ts

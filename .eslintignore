@@ -1,0 +1,10 @@
+src/generated/prisma/**
+.next/**
+.next.stale*/
+dist/**
+tmp/**
+.codex-runtime/**
+.codex-local/**
+.codex-logs/**
+.codex-temp/**
+.logs/**
