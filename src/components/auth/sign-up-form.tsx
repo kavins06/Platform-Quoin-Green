@@ -42,10 +42,15 @@ export function SignUpForm() {
 
     try {
       const supabase = createSupabaseBrowserClient();
+      const emailRedirectTo =
+        typeof window !== "undefined"
+          ? `${window.location.origin}/auth/callback`
+          : undefined;
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
+          emailRedirectTo,
           data: {
             full_name: name,
             name,
