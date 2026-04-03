@@ -5,6 +5,7 @@ import { JOB_STATUS } from "@/server/lib/jobs";
 
 const JOB_STALE_THRESHOLD_MS = 10 * 60_000;
 const QUEUED_JOB_STALE_THRESHOLD_MS = 15 * 60_000;
+const HEALTH_FAILURE_WINDOW_MS = 60 * 60_000;
 
 const LOGICAL_QUEUE_TYPES = [
   {
@@ -234,8 +235,12 @@ export async function getPmRuntimeHealth(input: {
 }
 
 async function getLogicalQueueRuntimeHealth(input: {
-  db: PrismaClient;
   groupedCounts: Array<{
+    type: string;
+    status: string;
+    _count: { _all: number };
+  }>;
+  recentFailureCounts: Array<{
     type: string;
     status: string;
     _count: { _all: number };
@@ -244,6 +249,14 @@ async function getLogicalQueueRuntimeHealth(input: {
   const countByTypeStatus = new Map<string, number>();
   for (const item of input.groupedCounts) {
     countByTypeStatus.set(`${item.type}:${item.status}`, item._count._all);
+  }
+
+  const recentFailureCountByTypeStatus = new Map<string, number>();
+  for (const item of input.recentFailureCounts) {
+    recentFailureCountByTypeStatus.set(
+      `${item.type}:${item.status}`,
+      item._count._all,
+    );
   }
 
   return LOGICAL_QUEUE_TYPES.map((queue) => {
@@ -258,8 +271,8 @@ async function getLogicalQueueRuntimeHealth(input: {
     const failedCount = queue.types.reduce(
       (sum, type) =>
         sum +
-        (countByTypeStatus.get(`${type}:${JOB_STATUS.FAILED}`) ?? 0) +
-        (countByTypeStatus.get(`${type}:${JOB_STATUS.DEAD}`) ?? 0),
+        (recentFailureCountByTypeStatus.get(`${type}:${JOB_STATUS.FAILED}`) ?? 0) +
+        (recentFailureCountByTypeStatus.get(`${type}:${JOB_STATUS.DEAD}`) ?? 0),
       0,
     );
     const completedCount = queue.types.reduce(
@@ -279,6 +292,30 @@ async function getLogicalQueueRuntimeHealth(input: {
   });
 }
 
+async function getReferencedLatestJobIds(db: PrismaClient) {
+  const rows = await db.$queryRaw<Array<{ id: string | null }>>`
+    select latest_job_id as id from portfolio_manager_management where latest_job_id is not null
+    union
+    select latest_job_id as id from portfolio_manager_import_states where latest_job_id is not null
+    union
+    select latest_job_id as id from portfolio_manager_provisioning_states where latest_job_id is not null
+    union
+    select latest_job_id as id from portfolio_manager_setup_states where latest_job_id is not null
+    union
+    select latest_job_id as id from portfolio_manager_meter_link_states where latest_job_id is not null
+    union
+    select latest_job_id as id from portfolio_manager_usage_states where latest_job_id is not null
+    union
+    select latest_job_id as id from portfolio_manager_sync_states where latest_job_id is not null
+    union
+    select latest_job_id as id from green_button_connections where latest_job_id is not null
+  `;
+
+  return rows
+    .map((row) => row.id)
+    .filter((id): id is string => typeof id === "string" && id.length > 0);
+}
+
 export async function getPlatformRuntimeHealth(input?: {
   db?: PrismaClient;
 }): Promise<PlatformRuntimeHealth> {
@@ -295,16 +332,17 @@ export async function getPlatformRuntimeHealth(input?: {
   const now = Date.now();
   const stalledRunningBefore = new Date(now - JOB_STALE_THRESHOLD_MS);
   const staleQueuedBefore = new Date(now - QUEUED_JOB_STALE_THRESHOLD_MS);
+  const recentFailureAfter = new Date(now - HEALTH_FAILURE_WINDOW_MS);
 
   const [
     worker,
     groupedJobCounts,
+    recentFailureGroupedJobCounts,
     queuedCount,
     runningCount,
     failedCount,
     deadCount,
-    stalledRunningCount,
-    staleQueuedCount,
+    latestJobIds,
     latestFailedJob,
     portfolioManagerFailures,
     greenButtonFailures,
@@ -317,27 +355,35 @@ export async function getPlatformRuntimeHealth(input?: {
         _all: true,
       },
     }),
+    db.job.groupBy({
+      by: ["type", "status"],
+      where: {
+        status: {
+          in: [JOB_STATUS.FAILED, JOB_STATUS.DEAD],
+        },
+        OR: [
+          { completedAt: { gte: recentFailureAfter } },
+          { createdAt: { gte: recentFailureAfter } },
+        ],
+      },
+      _count: {
+        _all: true,
+      },
+    }),
     db.job.count({ where: { status: JOB_STATUS.QUEUED } }),
     db.job.count({ where: { status: JOB_STATUS.RUNNING } }),
     db.job.count({ where: { status: JOB_STATUS.FAILED } }),
     db.job.count({ where: { status: JOB_STATUS.DEAD } }),
-    db.job.count({
-      where: {
-        status: JOB_STATUS.RUNNING,
-        startedAt: { lt: stalledRunningBefore },
-      },
-    }),
-    db.job.count({
-      where: {
-        status: JOB_STATUS.QUEUED,
-        createdAt: { lt: staleQueuedBefore },
-      },
-    }),
+    getReferencedLatestJobIds(db),
     db.job.findFirst({
       where: {
         status: {
           in: [JOB_STATUS.FAILED, JOB_STATUS.DEAD],
         },
+        OR: [
+          { completedAt: { gte: recentFailureAfter } },
+          { createdAt: { gte: recentFailureAfter } },
+        ],
       },
       orderBy: [{ createdAt: "desc" }],
       select: {
@@ -362,9 +408,31 @@ export async function getPlatformRuntimeHealth(input?: {
   ]);
 
   const queues = await getLogicalQueueRuntimeHealth({
-    db,
     groupedCounts: groupedJobCounts,
+    recentFailureCounts: recentFailureGroupedJobCounts,
   });
+  const stalledWhere =
+    latestJobIds.length > 0
+      ? {
+          id: { in: latestJobIds },
+        }
+      : undefined;
+  const [stalledRunningCount, staleQueuedCount] = await Promise.all([
+    db.job.count({
+      where: {
+        status: JOB_STATUS.RUNNING,
+        startedAt: { lt: stalledRunningBefore },
+        ...(stalledWhere ?? {}),
+      },
+    }),
+    db.job.count({
+      where: {
+        status: JOB_STATUS.QUEUED,
+        createdAt: { lt: staleQueuedBefore },
+        ...(stalledWhere ?? {}),
+      },
+    }),
+  ]);
   const queuesHealthy = queues.every((queue) => queue.status === "HEALTHY");
   const stalledCount = stalledRunningCount + staleQueuedCount;
   const status =
