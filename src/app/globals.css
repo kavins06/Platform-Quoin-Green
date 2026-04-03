@@ -117,7 +117,7 @@
   /* ── Font role aliases ── */
   .font-display  { font-family: var(--font-display), var(--font-sans), sans-serif; }
   .font-headline { font-family: var(--font-display), var(--font-sans), sans-serif; }
-  .font-dashboard-display { font-family: var(--font-dashboard-display), var(--font-display), serif; }
+  .font-dashboard-display { font-family: var(--font-dashboard-display, var(--font-display)), var(--font-sans), serif; }
   .font-dashboard-sans { font-family: var(--font-dashboard-sans), var(--font-sans), sans-serif; }
 
   /* ── Surface / shell ── */

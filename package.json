@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -H 127.0.0.1 -p 3101",
-    "build": "node scripts/prepare-build.mjs && next build && npm run worker:build",
+    "build": "node scripts/prepare-build.mjs && npm run prisma:generate && next build && npm run worker:build",
     "start": "node scripts/start-server.mjs",
     "stop": "node scripts/stop-local-runtime.mjs",
     "lint": "next lint",

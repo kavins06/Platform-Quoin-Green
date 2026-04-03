@@ -5,7 +5,6 @@ import {
   Space_Grotesk,
   Inter,
   JetBrains_Mono,
-  Newsreader,
   Manrope,
 } from "next/font/google";
 import { cn } from "@/lib/utils";
@@ -37,13 +36,6 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
-const newsreader = Newsreader({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-dashboard-display",
-  display: "swap",
-});
-
 const manrope = Manrope({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
@@ -70,7 +62,6 @@ export default function RootLayout({
         spaceGrotesk.variable,
         inter.variable,
         jetbrainsMono.variable,
-        newsreader.variable,
         manrope.variable,
       )}
       style={{ colorScheme: "light" }}
