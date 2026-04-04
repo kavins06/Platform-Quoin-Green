@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -100,6 +100,35 @@ export function EnergyUsageChart({
   heightClassName?: string;
 }) {
   const { chartData, hasFuel, latestDate } = useMemo(() => buildChartData(rows), [rows]);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [containerReady, setContainerReady] = useState(false);
+
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node) {
+      return;
+    }
+
+    const updateReady = (width: number) => {
+      setContainerReady(width > 0);
+    };
+
+    updateReady(node.getBoundingClientRect().width);
+
+    if (typeof ResizeObserver === "undefined") {
+      const handleResize = () => updateReady(node.getBoundingClientRect().width);
+      window.addEventListener("resize", handleResize);
+      return () => window.removeEventListener("resize", handleResize);
+    }
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      updateReady(entry?.contentRect.width ?? 0);
+    });
+    observer.observe(node);
+
+    return () => observer.disconnect();
+  }, []);
 
   if (chartData.length === 0) {
     return null;
@@ -117,94 +146,99 @@ export function EnergyUsageChart({
 
   return (
     <div className="space-y-3">
-      <div className={`${heightClassName} border border-zinc-200 p-6`}>
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData} barCategoryGap="25%">
-            <XAxis
-              dataKey="month"
-              tick={{ fontSize: 11, fill: "#71717a", fontWeight: 500 }}
-              axisLine={{ stroke: "#e4e4e7" }}
-              tickLine={false}
-              dy={10}
-            />
-            <YAxis
-              tick={{ fontSize: 11, fill: "#71717a", fontWeight: 500 }}
-              axisLine={false}
-              tickLine={false}
-              tickFormatter={(value: number) =>
-                value >= 1000 ? `${(value / 1000).toFixed(0)}k` : String(value)
-              }
-              dx={-10}
-            />
-            <Tooltip
-              contentStyle={{
-                border: "1px solid #e4e4e7",
-                borderRadius: "8px",
-                fontSize: "12px",
-                boxShadow:
-                  "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
-              }}
-              formatter={(value) => [`${Number(value).toLocaleString()} kBtu`]}
-              cursor={{ fill: "#f4f4f5" }}
-            />
-            {hasFuel("ELECTRIC") ? (
-              <Bar
-                dataKey="ELECTRIC"
-                stackId="a"
-                fill="#3b82f6"
-                name="Electric"
-                radius={[
-                  hasFuel("GAS") || hasFuel("STEAM") || hasFuel("OTHER") ? 0 : 4,
-                  hasFuel("GAS") || hasFuel("STEAM") || hasFuel("OTHER") ? 0 : 4,
-                  0,
-                  0,
-                ]}
+      <div
+        ref={containerRef}
+        className={`${heightClassName} min-w-0 border border-zinc-200 p-6`}
+      >
+        {containerReady ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} barCategoryGap="25%">
+              <XAxis
+                dataKey="month"
+                tick={{ fontSize: 11, fill: "#71717a", fontWeight: 500 }}
+                axisLine={{ stroke: "#e4e4e7" }}
+                tickLine={false}
+                dy={10}
               />
-            ) : null}
-            {hasFuel("GAS") ? (
-              <Bar
-                dataKey="GAS"
-                stackId="a"
-                fill="#f59e0b"
-                name="Gas"
-                radius={[
-                  hasFuel("STEAM") || hasFuel("OTHER") ? 0 : 4,
-                  hasFuel("STEAM") || hasFuel("OTHER") ? 0 : 4,
-                  0,
-                  0,
-                ]}
+              <YAxis
+                tick={{ fontSize: 11, fill: "#71717a", fontWeight: 500 }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(value: number) =>
+                  value >= 1000 ? `${(value / 1000).toFixed(0)}k` : String(value)
+                }
+                dx={-10}
               />
-            ) : null}
-            {hasFuel("STEAM") ? (
-              <Bar
-                dataKey="STEAM"
-                stackId="a"
-                fill="#8b5cf6"
-                name="Steam"
-                radius={[hasFuel("OTHER") ? 0 : 4, hasFuel("OTHER") ? 0 : 4, 0, 0]}
+              <Tooltip
+                contentStyle={{
+                  border: "1px solid #e4e4e7",
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                  boxShadow:
+                    "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
+                }}
+                formatter={(value) => [`${Number(value).toLocaleString()} kBtu`]}
+                cursor={{ fill: "#f4f4f5" }}
               />
-            ) : null}
-            {hasFuel("OTHER") ? (
-              <Bar
-                dataKey="OTHER"
-                stackId="a"
-                fill="#71717a"
-                name="Other"
-                radius={[4, 4, 0, 0]}
+              {hasFuel("ELECTRIC") ? (
+                <Bar
+                  dataKey="ELECTRIC"
+                  stackId="a"
+                  fill="#3b82f6"
+                  name="Electric"
+                  radius={[
+                    hasFuel("GAS") || hasFuel("STEAM") || hasFuel("OTHER") ? 0 : 4,
+                    hasFuel("GAS") || hasFuel("STEAM") || hasFuel("OTHER") ? 0 : 4,
+                    0,
+                    0,
+                  ]}
+                />
+              ) : null}
+              {hasFuel("GAS") ? (
+                <Bar
+                  dataKey="GAS"
+                  stackId="a"
+                  fill="#f59e0b"
+                  name="Gas"
+                  radius={[
+                    hasFuel("STEAM") || hasFuel("OTHER") ? 0 : 4,
+                    hasFuel("STEAM") || hasFuel("OTHER") ? 0 : 4,
+                    0,
+                    0,
+                  ]}
+                />
+              ) : null}
+              {hasFuel("STEAM") ? (
+                <Bar
+                  dataKey="STEAM"
+                  stackId="a"
+                  fill="#8b5cf6"
+                  name="Steam"
+                  radius={[hasFuel("OTHER") ? 0 : 4, hasFuel("OTHER") ? 0 : 4, 0, 0]}
+                />
+              ) : null}
+              {hasFuel("OTHER") ? (
+                <Bar
+                  dataKey="OTHER"
+                  stackId="a"
+                  fill="#71717a"
+                  name="Other"
+                  radius={[4, 4, 0, 0]}
+                />
+              ) : null}
+              <Legend
+                wrapperStyle={{
+                  fontSize: "12px",
+                  color: "#52525b",
+                  fontWeight: 500,
+                  paddingTop: "12px",
+                }}
+                iconType="circle"
+                iconSize={8}
               />
-            ) : null}
-            <Legend
-              wrapperStyle={{
-                fontSize: "12px",
-                color: "#52525b",
-                fontWeight: 500,
-                paddingTop: "12px",
-              }}
-              iconType="circle"
-              iconSize={8}
-            />
-          </BarChart>
-        </ResponsiveContainer>
+            </BarChart>
+          </ResponsiveContainer>
+        ) : null}
       </div>
 
       {freshness ? (
