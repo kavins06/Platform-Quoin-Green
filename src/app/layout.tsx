@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { TRPCProvider } from "@/components/providers";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import {
   Space_Grotesk,
@@ -68,6 +69,7 @@ export default function RootLayout({
     >
       <body className="min-h-screen bg-background text-foreground">
         <TRPCProvider>{children}</TRPCProvider>
+        <Analytics />
       </body>
     </html>
   );
